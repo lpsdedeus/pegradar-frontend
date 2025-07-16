@@ -1,91 +1,100 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-const API = process.env.REACT_APP_API || 'https://pegradar-backend.onrender.com';
+const API = 'https://pegradar-backend.onrender.com';
 
-function App() {
+export default function App() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [logado, setLogado] = useState(false);
   const [oportunidades, setOportunidades] = useState([]);
+  const [valorBase, setValorBase] = useState(1000);
   const [erro, setErro] = useState('');
 
   const handleLogin = async () => {
-    try {
-      const response = await fetch(`${API}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, senha }),
-      });
-
-      const data = await response.json();
-      if (data.sucesso) {
-        setLogado(true);
-        setErro('');
-        buscarOportunidades();
-      } else {
-        setErro(data.mensagem);
-      }
-    } catch (error) {
-      setErro('Erro ao conectar com o servidor');
+    setErro('');
+    const res = await fetch(`${API}/api/login`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email, senha })
+    });
+    const j = await res.json();
+    if (j.sucesso) {
+      setLogado(true);
+      fetchOportunidades();
+    } else {
+      setErro(j.mensagem);
     }
   };
 
-  const buscarOportunidades = async () => {
+  const fetchOportunidades = async () => {
     try {
-      const response = await fetch(`${API}/api/oportunidades`);
-      const data = await response.json();
-      if (data.sucesso) {
-        setOportunidades(data.oportunidades);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar oportunidades:', error);
+      const res = await fetch(`${API}/api/oportunidades?valor=${valorBase}`);
+      const j = await res.json();
+      if (j.sucesso) setOportunidades(j.oportunidades);
+      else setErro(j.mensagem);
+    } catch {
+      setErro('Erro ao carregar oportunidades');
     }
   };
+
+  useEffect(() => {
+    if (logado) fetchOportunidades();
+  }, [valorBase, logado]);
+
+  if (!logado) {
+    return (
+      <div className="login-screen">
+        <div className="login-box">
+          <h1>PegRadar</h1>
+          <input type="email"   placeholder="Email" value={email}   onChange={e=>setEmail(e.target.value)}  />
+          <input type="password"placeholder="Senha" value={senha}   onChange={e=>setSenha(e.target.value)}/>
+          <button onClick={handleLogin}>Entrar</button>
+          {erro && <p className="error">{erro}</p>}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="App">
-      {!logado ? (
-        <div className="login-container">
-          <h2>PegRadar - Login</h2>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <input
-            type="password"
-            placeholder="Senha"
-            value={senha}
-            onChange={(e) => setSenha(e.target.value)}
-          />
-          <button onClick={handleLogin}>Entrar</button>
-          {erro && <p className="erro">{erro}</p>}
+    <div className="app-container">
+      <header>
+        <h1>Oportunidades de Arbitragem</h1>
+        <div className="controls">
+          <label>
+            Valor Base (R$):
+            <input
+              type="number"
+              value={valorBase}
+              onChange={e=>setValorBase(Number(e.target.value))}
+            />
+          </label>
+          <button onClick={fetchOportunidades}>Atualizar</button>
         </div>
-      ) : (
-        <div className="oportunidades-container">
-          <h2>Oportunidades de Arbitragem</h2>
-          {oportunidades.length === 0 ? (
-            <p>Nenhuma oportunidade encontrada.</p>
-          ) : (
-            oportunidades.map((op, index) => (
-              <div key={index} className="card">
-                <h3>{op.par}</h3>
-                <p><strong>Origem:</strong> {op.origem}</p>
-                <p><strong>Destino:</strong> {op.destino}</p>
-                <p><strong>APR:</strong> {op.apr.toFixed(2)}%</p>
-                <p><strong>Spread Bruto:</strong> {op.spread.toFixed(2)}%</p>
-                <p><strong>Taxa estimada (Gas):</strong> ${op.estimatedGasFeeUSD}</p>
-                <p><strong>Lucro líquido estimado (sobre R$1000):</strong> ${op.lucroLiquido}</p>
-                <p><strong>Tempo estimado:</strong> {op.tempo}</p>
-              </div>
-            ))
-          )}
-        </div>
-      )}
+      </header>
+      <div className="cards-grid">
+        {oportunidades.map((op, i) => (
+          <a key={i} href={op.linkSwap} target="_blank" rel="noreferrer" className="card">
+            <div className="card-header">
+              <span className="badge">{op.chain.toUpperCase()}</span>
+              <h2>{op.par}</h2>
+            </div>
+            <div className="card-body">
+              <p><strong>Origem:</strong> {op.origem}</p>
+              <p><strong>Destino:</strong> {op.destino}</p>
+              <p><strong>APR:</strong> {op.apr}%</p>
+              <p><strong>Spread:</strong> {op.spread}%</p>
+              <p><strong>Gás:</strong> ${op.estimatedGasFeeUSD}</p>
+              <p><strong>Lucro:</strong> R${op.lucroLiquido}</p>
+              <p><strong>Tempo:</strong> {op.tempo}</p>
+            </div>
+            <div className="card-footer">
+              <button>Ir para swap</button>
+            </div>
+          </a>
+        ))}
+        {oportunidades.length === 0 && <p className="no-data">Nenhuma oportunidade encontrada.</p>}
+      </div>
     </div>
   );
 }
-
-export default App;
